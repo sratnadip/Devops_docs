@@ -1,0 +1,73 @@
+#!/bin/bash
+
+set -x
+
+# Command-line arguments
+PG_CONTAINER_NAME=$1
+DB_NAME=$2
+S3_BUCKET=$3
+FOLDER=$4
+BACKUP_DIR=/tmp/postgres_db_backup
+DATE=$(date +%Y-%m-%d)
+PG_USERNAME=$6  # Username passed as argument
+PG_PASSWORD=$7  # Password passed as argument
+
+# Ensure backup directory exists
+mkdir -p $BACKUP_DIR
+
+# Function to create and upload backup to a specific folder in S3
+backup_db() {
+  local db_name=$1
+  local folder=$2
+  local backup_file="${BACKUP_DIR}/${db_name}_backup_${DATE}.sql"
+
+  # Backup database inside the container using provided username and password
+  docker exec $PG_CONTAINER_NAME sh -c "PGPASSWORD=$PG_PASSWORD pg_dump -U $PG_USERNAME $db_name" > $backup_file
+
+  # Check if the backup was successful
+  if [ $? -eq 0 ]; then
+    echo "Backup for $db_name completed: $backup_file"
+
+    # Change ownership of the backup file to the 'ubuntu' user
+    sudo chown ubuntu:ubuntu $backup_file
+  else
+    echo "Backup failed for $db_name" && exit 1
+  fi
+
+  # Upload to the specified S3 folder
+  aws s3 cp $backup_file s3://$S3_BUCKET/$folder/
+  if [ $? -eq 0 ]; then
+    echo "Uploaded $backup_file to S3 bucket $S3_BUCKET in folder $folder"
+    rm $backup_file # Delete local backup after upload
+  else
+    echo "Failed to upload $backup_file to S3" && exit 1
+  fi
+}
+
+# Back up the specified database (only demo-db in this case)
+backup_db $DB_NAME $FOLDER
+
+# Apply S3 lifecycle policy to delete files older than 7 days in the specified folder
+aws s3api put-bucket-lifecycle-configuration --bucket $S3_BUCKET --lifecycle-configuration '{
+ "Rules": [
+    {
+      "ID": "DeleteOldBackups",
+      "Filter": {
+        "Prefix": "'"$FOLDER/"'"
+      },
+      "Status": "Enabled",
+      "Expiration": {
+        "Days": 7
+      }
+    }
+  ]
+}'
+
+echo "Lifecycle policy set to delete files older than 7 days in S3 folder: $FOLDER"
+
+
+
+########################################################################################################################
+#cronjob
+
+* * * * * /bin/bash /home/ubuntu/backup.sh postgres-demo demo-db pg-db-dump-123 pg_dump /tmp/postgres_db_backup  deep deep > /var/log/pg_backup.log 2>&1

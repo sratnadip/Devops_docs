@@ -1,0 +1,10 @@
+DATABASE_URL=postgresql://event_ehr:Amkp7RduP47K@10.0.8.121:5432/event_ehr_dev_db?schema=public
+DESCOPE_PROJECT_ID=P2giqDVFoFtqEb1YWlahrMvH25Jg
+DESCOPE_MANAGEMENT_KEY=K2oSsDUJbWqhSrR0dF3U7oVXeXSttyeCxz03SCMyiW30x89YomGuydAD1bJ02A8v85iGqGn
+PORT=3000
+saltRounds=10
+
+####################################################################################################
+
+frontend-env 
+REACT_APP_API_URL=http://107.23.11.114/api/

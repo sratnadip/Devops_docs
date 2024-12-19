@@ -1,0 +1,193 @@
+#!/bin/bash
+set -ex #this enable  makes the script exit immediately if any command in the script exits with a non-zero status
+
+CONTAINER_NAME=erp-frontend
+TAG=date +%d%m%y
+KEY_FILE=/home/ubuntu/.ssh/bitbucket.pem
+DVCS=<git ssh url here>
+IMAGE_NAME=${CONTAINER_NAME}:${TAG}
+DEFAULT_BRANCH="develop"
+EPORT="81"
+IPORT="80"
+
+ 
+#checks if the first runtime variable is empty(), if empty then set BRANCH="$DEFAULT_BRANCH"
+if [ -z "$1" ]; then
+  BRANCH="$DEFAULT_BRANCH"
+else
+  BRANCH="$1"
+fi
+
+
+pkill -f ssh-agent
+eval ssh-agent -s
+ssh-add ${KEY_FILE}
+cd /home/ubuntu/fleeca-docker
+git clone ${DVCS} -b ${BRANCH}
+cp /home/ubuntu/deployment-files/erp-ui/Dockerfile /home/ubuntu/fleeca-docker/erp-frontend/angular-src/
+cp /home/ubuntu/deployment-files/erp-ui/nginx-temp.conf /home/ubuntu/fleeca-docker/erp-frontend/angular-src/
+cp /home/ubuntu/deployment-files/erp-ui/angular-src/src/app/* /home/ubuntu/fleeca-docker/erp-frontend/angular-src/src/app/
+cd /home/ubuntu/fleeca-docker/erp-frontend/angular-src/
+npm install
+ng build
+
+#docker deployment start from here
+echo "deployment start in container"
+sudo docker build -t ${IMAGE_NAME} .
+sudo docker rm -f ${CONTAINER_NAME}
+sudo docker run -itd -p ${EPORT}:${IPORT} --name ${CONTAINER_NAME} --log-opt max-size=50m --log-opt max-file=7 --restart always ${IMAGE_NAME}
+sleep 10
+
+#add color for echo statement 
+if docker inspect ${CONTAINER_NAME} | grep -q '"Status": "running",';
+then
+    echo "\e[32mDeployment is successfull\e[0m"
+    timeout 60s docker logs -f "$CONTAINER_NAME"
+else docker inspect ${CONTAINER_NAME} | grep -q '"Status": "exited",';
+     echo -e "\e[31mDeployment is failed\e[0m"
+fi
+
+#clean up from host
+rm -rf /home/ubuntu/fleeca-docker/erp-frontend
+
+
+#######################################################################################################################################################
+
+
+# Stage 1: Build the Angular Application
+FROM node:16-alpine AS build
+
+# Set working directory
+WORKDIR /app
+
+# Install dependencies
+COPY package*.json ./
+RUN npm install
+
+# Copy the rest of the application code
+COPY . .
+
+# Build the Angular application
+RUN npm run build --prod
+
+# Stage 2: Serve the Application with Nginx
+FROM nginx:alpine
+
+# Copy the built Angular app from the previous stage
+COPY --from=build /app/dist/<your-angular-app-name> /usr/share/nginx/html
+
+# Optional: Copy custom Nginx configuration
+COPY nginx.conf /etc/nginx/nginx.conf
+
+# Expose port 80
+EXPOSE 80
+
+# Start Nginx server
+CMD ["nginx", "-g", "daemon off;"]
+
+
+
+###############################################################################################################################################################
+
+#!/bin/bash
+set -x #this enable  makes the script exit immediately if any command in the script exits with a non-zero status
+
+CONTAINER_NAME="event-ehr-prp-backend"
+TAG=`date +%d%m%y`
+KEY_FILE="/home/ubuntu/.ssh/github.pem"
+DVCS="git@github.com:thinkitivesolutions/eventehr_prp_backend.git"
+IMAGE_NAME=${CONTAINER_NAME}:${TAG}
+DEFAULT_BRANCH="dev"
+EPORT="8081"
+IPORT="3000"
+
+
+#checks if the first runtime variable is empty(), if empty then set BRANCH="$DEFAULT_BRANCH"
+if [ -z "$1" ]; then
+  BRANCH="$DEFAULT_BRANCH"
+else
+  BRANCH="$1"
+fi
+
+
+pkill -f ssh-agent
+eval `ssh-agent -s`
+ssh-add ${KEY_FILE}
+cd /home/ubuntu/deployment-script/repo
+git clone ${DVCS} -b ${BRANCH}
+cp /home/ubuntu/deployment-script/backend/Dockerfile /home/ubuntu/deployment-script/repo/
+cd /home/ubuntu/deployment-script/repo
+npm install
+npm run build
+
+#docker deployment start from here
+echo "deployment start in container"
+sudo docker build -t ${IMAGE_NAME} .
+sudo docker rm -f ${CONTAINER_NAME}
+sudo docker run -itd -p ${EPORT}:${IPORT} --name ${CONTAINER_NAME} --log-opt max-size=50m --log-opt max-file=7 --restart always ${IMAGE_NAME}
+sleep 10
+
+#add color for echo statement
+if docker inspect ${CONTAINER_NAME} | grep -q '"Status": "running",';
+then
+    echo "\e[32mDeployment is successfull\e[0m"
+    timeout 60s docker logs -f "$CONTAINER_NAME"
+else docker inspect ${CONTAINER_NAME} | grep -q '"Status": "exited",';
+     echo -e "\e[31mDeployment is failed\e[0m"
+fi
+
+#clean up from host
+#rm -rf /home/ubuntu/deployment-script/repo/eventehr_prp_backend
+
+
+###########################################################################################################################################################
+
+#!/bin/bash
+set -x #this enable  makes the script exit immediately if any command in the script exits with a non-zero status
+
+CONTAINER_NAME="event-ehr-admin-backend"
+TAG=`date +%d%m%y`
+KEY_FILE="/home/ubuntu/.ssh/github.pem"
+DVCS="git@github.com:thinkitivesolutions/eventehr_admin_backend"
+IMAGE_NAME=${CONTAINER_NAME}:${TAG}
+DEFAULT_BRANCH="dev"
+EPORT="8082"
+IPORT="3001"
+
+
+#checks if the first runtime variable is empty(), if empty then set BRANCH="$DEFAULT_BRANCH"
+if [ -z "$1" ]; then
+  BRANCH="$DEFAULT_BRANCH"
+else
+  BRANCH="$1"
+fi
+
+
+pkill -f ssh-agent
+eval `ssh-agent -s`
+ssh-add ${KEY_FILE}
+cd /home/ubuntu/deployment-script/repo
+git clone ${DVCS} -b ${BRANCH}
+cp /home/ubuntu/deployment-script/backend/Dockerfile /home/ubuntu/deployment-script/repo/
+cd /home/ubuntu/deployment-script/repo
+npm install
+ng build
+
+#docker deployment start from here
+echo "deployment start in container"
+sudo docker build -t ${IMAGE_NAME} .
+sudo docker rm -f ${CONTAINER_NAME}
+sudo docker run -itd -p ${EPORT}:${IPORT} --name ${CONTAINER_NAME} --log-opt max-size=50m --log-opt max-file=7 --restart always ${IMAGE_NAME}
+sleep 10
+
+#add color for echo statement
+if docker inspect ${CONTAINER_NAME} | grep -q '"Status": "running",';
+then
+    echo "\e[32mDeployment is successfull\e[0m"
+    timeout 60s docker logs -f "$CONTAINER_NAME"
+else docker inspect ${CONTAINER_NAME} | grep -q '"Status": "exited",';
+     echo -e "\e[31mDeployment is failed\e[0m"
+fi
+
+#clean up from host
+#rm -rf /home/ubuntu/deployment-script/repo/eventehr_admin_backend

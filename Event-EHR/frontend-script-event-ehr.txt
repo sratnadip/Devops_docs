@@ -1,0 +1,55 @@
+#!/bin/bash
+set -x #this enable  makes the script exit immediately if any command in the script exits with a non-zero status
+
+CONTAINER_NAME="event-ehr-prp-frontend"
+TAG=`date +%d%m%y`
+KEY_FILE="/home/ubuntu/.ssh/github.pem"
+DVCS="git@github.com:thinkitivesolutions/eventehr_prp_frontend.git"
+IMAGE_NAME=${CONTAINER_NAME}:${TAG}
+DEFAULT_BRANCH="dev"
+EPORT="8081"
+IPORT="80"
+
+
+#checks if the first runtime variable is empty(), if empty then set BRANCH="$DEFAULT_BRANCH"
+if [ -z "$1" ]; then
+  BRANCH="$DEFAULT_BRANCH"
+else
+  BRANCH="$1"
+fi
+
+
+
+pkill -f ssh-agent
+eval `ssh-agent -s`
+ssh-add ${KEY_FILE}
+cd /home/ubuntu/deployment-script/repo
+rm -rf /home/ubuntu/deployment-script/repo/eventehr_prp_frontend
+echo "Cloning the repo from ${DVCS} on branch ${BRANCH}"
+git clone ${DVCS} -b ${BRANCH}
+cd /home/ubuntu/deployment-script/repo/eventehr_prp_frontend/
+git pull
+cp /home/ubuntu/deployment-script/frontend/Dockerfile /home/ubuntu/deployment-script/repo/eventehr_prp_frontend/
+cp /home/ubuntu/deployment-script/frontend/nginx-temp.conf /home/ubuntu/deployment-script/repo/eventehr_prp_frontend/
+cp /home/ubuntu/deployment-script/frontend/frontend-env.txt /home/ubuntu/deployment-script/repo/eventehr_prp_frontend/.env
+cd /home/ubuntu/deployment-script/repo/eventehr_prp_frontend
+
+
+#docker deployment start from here
+echo "deployment start in container"
+sudo docker build -t ${IMAGE_NAME} .
+sudo docker rm -f ${CONTAINER_NAME}
+#sudo docker run -itd -p ${EPORT}:${IPORT} --name ${CONTAINER_NAME} --env-file frontend-env.txt --log-opt max-size=50m --log-opt max-file=7 --restart always ${IMAGE_NAME}
+
+sudo docker run -itd -p ${EPORT}:${IPORT} --name ${CONTAINER_NAME}  --log-opt max-size=50m --log-opt max-file=7 --restart always ${IMAGE_NAME}
+
+sleep 10
+
+#add color for echo statement
+if docker inspect ${CONTAINER_NAME} | grep -q '"Status": "running",';
+then
+    echo "\e[32mDeployment is successfull\e[0m"
+    timeout 60s docker logs -f "$CONTAINER_NAME"
+else docker inspect ${CONTAINER_NAME} | grep -q '"Status": "exited",';
+     echo -e "\e[31mDeployment is failed\e[0m"
+fi

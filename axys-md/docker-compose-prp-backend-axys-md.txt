@@ -1,0 +1,31 @@
+version: '3'
+services:
+  postgres:
+    container_name: axysmd_database
+    image: postgres:alpine
+    ports:
+      - '6432:5432'
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=axysmd23052024
+      - POSTGRES_DB=axysmd_dev
+      - POSTGRES_URL="postgresql://postgres:axysmd23052024@54.221.185.9:5432/axysmd_dev"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/14/main
+      - postgres_data:/etc/postgresql/14/main
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+    networks:
+      - backend_network
+
+networks:
+  backend_network:
+    driver: bridge
+
+volumes:
+  postgres_data:

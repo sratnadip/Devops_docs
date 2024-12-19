@@ -1,0 +1,32 @@
+# Stage 1: Build Angular Application
+FROM node:18-alpine AS build
+
+# Set Node options to prevent memory issues during the build
+#ENV NODE_OPTIONS=--max_old_space_size=4096
+
+# Set the working directory inside the container
+WORKDIR /app
+
+# Copy package.json and package-lock.json (if available)
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy the rest of the application source code
+COPY . .
+
+# Build the Angular app
+RUN npm run build
+
+# Stage 2: Serve using Nginx
+FROM nginx:1.27.3-alpine
+
+# Copy the built Angular app from the build stage
+COPY --from=build /app/build/ /usr/share/nginx/html/
+
+# Set the working directory to Nginx's static folder
+WORKDIR /usr/share/nginx/html
+
+# List files to verify the build output
+RUN ls -l
